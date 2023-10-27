@@ -6,9 +6,31 @@
 #include "Math/Vector4D.h"
 #include "TStyle.h"
 #include <string>
+#include "headers.hh"
 
 using namespace ROOT;
 using namespace ROOT::VecOps;
+
+RVecI CreateTrigIndex(const RVecF Muon_eta,
+		      const RVecF Muon_phi,
+		      const RVecF TrigObj_eta,
+		      const RVecF TrigObj_phi,
+		      const float minDR)
+{
+  RVecI Muon_TrigIdx(Muon_eta.size(), -1);
+  float dR = 999.9;
+  for (int iMu=0; iMu < Muon_eta.size(); iMu++){
+    float tmpDR = minDR;
+    for (int iTr=0; iTr < TrigObj_eta.size(); iTr++){
+      dR = DeltaR(Muon_eta[iMu], TrigObj_eta[iTr], Muon_phi[iMu], TrigObj_phi[iTr]);
+      if (dR<tmpDR){
+	tmpDR = dR;
+	Muon_TrigIdx[iMu] = iTr;
+      }
+    }
+  }
+  return Muon_TrigIdx;
+}
 
 RVec<std::pair<int,int>> CreateTPPair(const RVec<Int_t> &Tag_muons,
                                       const RVec<Int_t> &Probe_Candidates,
