@@ -9,6 +9,8 @@ import sys
 import pandas as pd
 import time
 from Muon_TnP_cfg import *
+import uproot
+import os
 
 ROOT.gInterpreter.ProcessLine(".O3")
 ROOT.ROOT.EnableImplicitMT()
@@ -23,8 +25,19 @@ def create_TnP_pairs(era):
     
     
     #### Read input files
+    files = []
+    for i in range(len(samples[era]["input"])):
+        for root, dirnames, filenames in os.walk(samples[era]["input"][i]):
+            for filename in filenames:
+                if '.root' in filename:
+                    files.append(os.path.join(root, filename))
+
+    filenames = ROOT.std.vector('string')()
+
+    for name in files: filenames.push_back(name)
+
     
-    df = ROOT.RDataFrame("Events",samples[era]["input"])
+    df = ROOT.RDataFrame("Events",filenames)
     
     # just for utility
     df = df.Alias("Tag_pt",  "Muon_pt")
@@ -87,6 +100,7 @@ def create_TnP_pairs(era):
     #Flatten implementations. Below you can see 2 different implementations.
     
     #Using the flatten method of Awkward array. Slow compare to the numpy implementation
+    #Numpy option is better so no need to use it
     test_df = {}
     for key in npy:
         test_ak = [ak.Array(v) for v in npy[key]]
@@ -104,21 +118,23 @@ def create_TnP_pairs(era):
     for key in npy:
         test_list = [list(v) for v in npy[key]]
         flat_list = np.concatenate(test_list).flat
-        # flat_list = np.concatenate(test_list)
         test_df_np[key] = flat_list
     df_np = pd.DataFrame(test_df_np)
     print(df_np)
     
     df_np_time = time.time()
-    print("Time taken to create df_np = ", (df_np_time - df_ak_time))
+    print("Time taken to create df_np = ", (df_np_time - default_pd_time))
     
-    df_ak.to_parquet(samples[era]["output"])
+    df_np.to_parquet(samples[era]["output"])
     
     df_save_time = time.time()
     
     print("Time taken to save df_ak = ", (df_save_time-df_np_time))
     
     print("Total time = ", (df_np_time - start))
+
+    out_file = uproot.recreate(samples[era]["root_file"])
+    out_file["tnp_tree"] = df_np
 
     
 

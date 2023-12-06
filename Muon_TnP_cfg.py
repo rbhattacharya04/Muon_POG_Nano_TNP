@@ -13,7 +13,8 @@ selection = {
 
 samples = {
     "Run2022" : {
-        'input'  : ["NanoV9Data_MuonPOG_22F.root"],
-        "output" : "tnp.parquet"
+        'input'  : "/gpfs/ddn/srm/cms/store/user/rbhattac/Muon_POG_NanoAOD_v2/Muon/NanoMuonPOGData2022F/231103_232820/",
+        "output" : "tnp.parquet",
+        "root_file": "tnp.root"
     }
 }
