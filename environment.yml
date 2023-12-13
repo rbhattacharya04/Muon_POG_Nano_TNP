@@ -1,0 +1,10 @@
+name: cern
+channels:
+  - conda-forge
+dependencies:
+  - pip
+  - root
+  - boost
+  - gcc
+  - cmake
+  - ninja
