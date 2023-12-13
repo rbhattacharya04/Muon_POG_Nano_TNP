@@ -11,6 +11,7 @@ import time
 from Muon_TnP_cfg import *
 import uproot
 import os
+import argparse
 
 ROOT.gInterpreter.ProcessLine(".O3")
 ROOT.ROOT.EnableImplicitMT()
@@ -19,25 +20,14 @@ ROOT.gInterpreter.Declare('#include "TNP_Muon_POG.h"')
 
 
 
-def create_TnP_pairs(era):
+def create_TnP_pairs(inputFile,outputPath,iteration_no):
     
     start = time.time()
     
+    print(inputFile) 
     
-    #### Read input files
-    files = []
-    for i in range(len(samples[era]["input"])):
-        for root, dirnames, filenames in os.walk(samples[era]["input"][i]):
-            for filename in filenames:
-                if '.root' in filename:
-                    files.append(os.path.join(root, filename))
-
-    filenames = ROOT.std.vector('string')()
-
-    for name in files: filenames.push_back(name)
-
-    
-    df = ROOT.RDataFrame("Events",filenames)
+    df = ROOT.RDataFrame("Events",inputFile)
+    #df = ROOT.RDataFrame("Events","/eos/user/r/rbhattac/Muon_POG_NanoAOD_v2/Muon/NanoMuonPOGData2022F/231103_232820/0000/NanoMuonPOGData_22F_test_35.root")
     
     # just for utility
     df = df.Alias("Tag_pt",  "Muon_pt")
@@ -101,16 +91,16 @@ def create_TnP_pairs(era):
     
     #Using the flatten method of Awkward array. Slow compare to the numpy implementation
     #Numpy option is better so no need to use it
-    test_df = {}
-    for key in npy:
-        test_ak = [ak.Array(v) for v in npy[key]]
-        test_np = ak.to_numpy(ak.flatten(test_ak))
-        test_df[key] = test_np
-    df_ak = pd.DataFrame(test_df)
-    print(df_ak)
+    #test_df = {}
+    #for key in npy:
+    #    test_ak = [ak.Array(v) for v in npy[key]]
+    #    test_np = ak.to_numpy(ak.flatten(test_ak))
+    #    test_df[key] = test_np
+    #df_ak = pd.DataFrame(test_df)
+    #print(df_ak)
     
-    df_ak_time = time.time()
-    print("Time taken to create df_ak = ", (df_ak_time - default_pd_time))
+    #df_ak_time = time.time()
+    #print("Time taken to create df_ak = ", (df_ak_time - default_pd_time))
     
     #Numpy implementation. Flatten option of numpy directly does not work since this is 
     #a jagged array. 
@@ -124,8 +114,10 @@ def create_TnP_pairs(era):
     
     df_np_time = time.time()
     print("Time taken to create df_np = ", (df_np_time - default_pd_time))
+
+    outputName = f"test_{iteration_no}"
     
-    df_np.to_parquet(samples[era]["output"])
+    df_np.to_parquet(outputPath+outputName+".parquet")
     
     df_save_time = time.time()
     
@@ -133,15 +125,39 @@ def create_TnP_pairs(era):
     
     print("Total time = ", (df_np_time - start))
 
-    out_file = uproot.recreate(samples[era]["root_file"])
-    out_file["tnp_tree"] = df_np
+    #out_file = uproot.recreate(outputPath+outputName+".root")
+    #out_file["tnp_tree"] = df_np
 
     
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Introduce an era")
-        exit
-    era = sys.argv[1]
-    create_TnP_pairs(era)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-e","--era", help="Mention the data period to run",
+                    type=str)
+    args = parser.parse_args()
+
+    era = args.era
+ 
+    #if len(sys.argv) < 2:
+    #    print("Introduce an era")
+    #    exit
+    #era = sys.argv[1]
+    #### Read input files
+    print(samples[era]["input"])
+    #for i in range(len(samples[era]["input"])):
+    iteration_no = 0
+    for root, dirnames, filenames in os.walk(samples[era]["input"]):
+        for filename in filenames:
+            print(filename)
+            if '.root' in filename:
+    #            #files.append(os.path.join(root, filename))
+                create_TnP_pairs(os.path.join(root,filename),samples[era]["outputPath"], iteration_no)
+                iteration_no += 1
+
+    #filenames = ROOT.std.vector('string')()
+
+    #for name in files: filenames.push_back(name)
+
+    #create_TnP_pairs("/eos/user/r/rbhattac/Muon_POG_NanoAOD_v2/Muon/NanoMuonPOGData2022F/231103_232820/0000/NanoMuonPOGData_22F_test_35.root",samples[era]["outputPath"], 1)
     print("DONE!")

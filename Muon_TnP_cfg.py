@@ -13,8 +13,10 @@ selection = {
 
 samples = {
     "Run2022" : {
-        'input'  : "/gpfs/ddn/srm/cms/store/user/rbhattac/Muon_POG_NanoAOD_v2/Muon/NanoMuonPOGData2022F/231103_232820/",
+        'input'  : "/eos/user/r/rbhattac/Muon_POG_NanoAOD_v2/Muon/NanoMuonPOGData2022F/231103_232820/",
+        #'input'  : "/gpfs/ddn/srm/cms/store/user/rbhattac/Muon_POG_NanoAOD_v2/Muon/NanoMuonPOGData2022F/231103_232820/",
         "output" : "tnp.parquet",
-        "root_file": "tnp.root"
+        "root_file": "tnp.root",
+        "outputPath": "test_12_12_2023/"
     }
 }
