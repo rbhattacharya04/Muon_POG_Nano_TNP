@@ -3,9 +3,12 @@
 
 import ROOT
 from sys import exit
+from sys import argv
+import argparse
 import time
 from Muon_TnP_cfg import *
 import os
+from pathlib import Path
 import subprocess
 import sys
 sys.path.insert(0, list(filter(lambda k: 'myenv' in k, sys.path))[0])
@@ -17,28 +20,71 @@ import numpy as np
 from math import ceil
 
 ROOT.gInterpreter.ProcessLine(".O3")
-#ROOT.EnableImplicitMT(1)
+#ROOT.EnableImplicitMT(1)                                  ### Not possible with the original approach: df.Range() to write in chunks
 ROOT.gInterpreter.Declare('#include "headers.hh"')
 ROOT.gInterpreter.Declare('#include "TNP_Muon_POG.h"') 
 
+def defaultParser():
+    parser = argparse.ArgumentParser(add_help=False)
 
+    parser.add_argument(
+        "-p",
+        "--prod",
+        type=str,
+        help="Production name to run",
+        required=True,
+    )
 
-def create_TnP_pairs(era):
+    parser.add_argument(
+        "-s",
+        "--doSubmit",
+        type=int,
+        choices=[0, 1],
+        help="1: split and submit jobs to condor; 0: run interactively",
+        required=False,
+        default=0,
+    )
+
+    parser.add_argument(
+        "-F",
+        "--selFile",
+        type=str,
+        help="File to run",
+        required=False,
+        default="",
+    )
+
+    parser.add_argument(
+        "-dR",
+        "--dryRun",
+        choices=[0, 1],
+        type=int,
+        help="1 do not submit to condor",
+        required=False,
+        default=0,
+    )
+
+    return parser
+    
+def create_TnP_pairs(era, fileName=""):
     
     start = time.time()
 
     print("Start computation!")
-    
-    #### Read input files
-    files = []
-    cmd = "find {} -wholename '*/*.root'".format(samples[era]["input"])
-    fnames = subprocess.check_output(cmd, shell=True).strip().split(b'\n')
-    files = files + [fname.decode('ascii') for fname in fnames]
 
+    name_tag = ""
+    if fileName=="":
+        #### Read input files
+        files = []
+        cmd = "find {} -wholename '*/*.root'".format(samples[era]["input"])
+        fnames = subprocess.check_output(cmd, shell=True).strip().split(b'\n')
+        files = files + [fname.decode('ascii') for fname in fnames]
+    else:
+        files = [fileName]
+        name_tag = fileName.split("NanoMuonPOGData_")[1].split(".root")[0]
+            
     print(files[0:10])
 
-    files = files[0:10]
-    #files = ["/eos/user/r/rbhattac/Muon_POG_NanoAOD_v2/Muon/NanoMuonPOGData2022F/231103_232820/0000/NanoMuonPOGData_22F_test_1-1.root"]
     filenames = ROOT.std.vector('string')()
     for name in files: filenames.push_back(name)
 
@@ -58,8 +104,9 @@ def create_TnP_pairs(era):
     
     ### Match between TrigObj and Muon collections
     df = df.Define("Muon_trigIdx", "CreateTrigIndex(Muon_eta, Muon_phi, TrigObj_eta, TrigObj_phi, 0.1)")
-    df = df.Define("Muon_isTrig", "Muon_trigIdx > 0")
-    df = df.Define("Muon_HLTIsoMu24", "TrigObj_filterBits[Muon_trigIdx] & 8")
+    df = df.Define("Muon_isTrig", "Muon_trigIdx < 950")
+    df = df.Define("Muon_filterBits", "Take(TrigObj_filterBits, Muon_trigIdx, 0)")
+    df = df.Define("Muon_HLTIsoMu24", "(Muon_filterBits & 8) > 0")
     
     df = df.Alias("Tag_trigIdx", "Muon_trigIdx")
     df = df.Alias("Tag_isTrig", "Muon_isTrig")
@@ -83,6 +130,10 @@ def create_TnP_pairs(era):
     df = df.Define("pair_pt","getTPVariables(TPPairs, Tag_pt, Tag_eta, Tag_phi, Muon_pt, Muon_eta, Muon_phi, 1)")
     df = df.Define("pair_eta","getTPVariables(TPPairs, Tag_pt, Tag_eta, Tag_phi, Muon_pt, Muon_eta, Muon_phi, 2)")
     df = df.Define("pair_phi","getTPVariables(TPPairs, Tag_pt, Tag_eta, Tag_phi, Muon_pt, Muon_eta, Muon_phi, 3)")
+
+    df = df.Define("npairs", "TPPairs.size()")
+    df = df.Define("nTag", "Sum(Tag_Muons==true)")
+    df = df.Define("probe_isDuplicated", "getDuplicatedProbes(TPPairs, Muon_pt)")
     
     ### Create probe branches
     for var in variables["probe"]:
@@ -92,12 +143,14 @@ def create_TnP_pairs(era):
     for var in variables["tag"]:
         df = df.Define("tag_"+var, "getVariables(TPPairs, Muon_"+var+", 1)")
 
-
+    ### Additional variables
+    df = df.Redefine("event", "RVecI(pair_mass.size(), event)")
+        
     loop_time = time.time()
     print("Time taken to loop = ",(loop_time -start))
     
     # ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    
+    '''
     #This gives you a  numpy.array(RVec)
     npy = df.AsNumpy(variables["save"])
     
@@ -126,7 +179,7 @@ def create_TnP_pairs(era):
     df_ak_time = time.time()
 
     print("Time taken to create and save df_ak = ", (df_ak_time - loop_time))
-
+    '''
     # -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
     
     #######
@@ -135,7 +188,10 @@ def create_TnP_pairs(era):
         
     chunksize = 10_000
     nIterations = max(ceil(df.Count().GetValue() / chunksize), 1)
-    outFile = "test_" + samples[era]["output"]
+    if name_tag == "":
+        outFile = samples[era]["output"]
+    else:
+        outFile = samples[era]["output"].split(".parquet")[0] + "_" + name_tag + ".parquet"
     branches = variables["save"]
     first = True
 
@@ -148,6 +204,7 @@ def create_TnP_pairs(era):
         print("Iteration: " + str(i))
         _df = df.Range( i * chunksize, (i+1) * chunksize)
         events = ak.from_rdataframe(_df, branches)
+        
         def getBranchFlatten(events, branch):
             ak_array = [ak.Array(v) for v in events[branch]]
             np_array = ak.to_numpy(ak.flatten(ak_array))
@@ -194,12 +251,97 @@ def create_TnP_pairs(era):
     #out_file = uproot.recreate(samples[era]["root_file"])
     #out_file["tnp_tree"] = df_np
     '''
-    
 
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Introduce an era")
+def build_condor_submit(era, dryRun=0):
+    mypath = os.path.abspath(os.getcwd())
+    
+    fSh = ""
+    with open(mypath + "/start.sh") as file:
+        fSh += file.read()
+
+    condorDir = mypath + "/condor"
+    Path(condorDir).mkdir(parents=True, exist_ok=True)
+    
+    files = []
+    cmd = "find {} -wholename '*/*.root'".format(samples[era]["input"])
+    fnames = subprocess.check_output(cmd, shell=True).strip().split(b'\n')
+    files = files + [fname.decode('ascii') for fname in fnames]
+
+    fSub = """
+universe = vanilla
+executable = condor/$(Folder)/run.sh
+
+should_transfer_files = YES
+transfer_input_files = Muon_TnP_cfg.py,TNP_Muon_POG.h,TNP_Muon_POG.py,headers.hh
+
+output = condor/$(Folder)/out.txt
+error  = condor/$(Folder)/err.txt
+log    = condor/$(Folder)/log.txt
+
+request_cpus   = 1
+request_memory = 12GB
+request_disk   = 10GB
+requirements = (OpSysAndVer =?= "AlmaLinux9")
++JobFlavour = "workday"
+
+queue 1 Folder in ALLTAGS
+"""
+
+    allTags = []
+    
+    for ff in files:
+        folder_tag = ff.split("/")[-1].split(".root")[0]
+        jobDir = condorDir + "/" + folder_tag
+        Path(jobDir).mkdir(parents=True, exist_ok=True)
+
+        job_fSh = fSh
+        job_fSh = job_fSh + "\n"
+        job_fSh = job_fSh + "time python TNP_Muon_POG.py -p " + era + " -s 0 -F " + ff
+        with open(jobDir + "/run.sh", "w") as file:
+            file.write(job_fSh)
+
+        os.system("chmod +x " + jobDir + "/run.sh")
+
+        allTags.append(folder_tag)
+    
+    fSub = fSub.replace("ALLTAGS", " ".join(allTags))
+    with open("condor_submit_"+ era +".jdl", "w") as file:
+        file.write(fSub)
+
+    if dryRun==1:
+        print("Submit jobs doing: \n")
+        print("condor_submit condor_submit_"+ era +".jdl")
+    else:
+        proc = subprocess.Popen(
+            "condor_submit condor_submit_"+ era +".jdl", shell=True
+        )
+        proc.wait()
+        
+    
+def main():
+    parser = defaultParser()
+    args = parser.parse_args()
+    
+    prodName = args.prod
+    doSubmit = args.doSubmit
+    selFile = args.selFile
+    dryRun = args.dryRun
+    
+    if prodName not in samples:
+        print("Production name not valid!!!! Check Muon_TnP_cfg.py file!")
         exit
-    era = sys.argv[1]
-    create_TnP_pairs(era)
+        
+    if doSubmit==0 and selFile=="":
+        create_TnP_pairs(prodName)
+    elif doSubmit==0 and selFile!="":
+        create_TnP_pairs(prodName, selFile)
+    elif doSubmit==1:
+        build_condor_submit(prodName, dryRun)
+        
+        
+    
+if __name__ == '__main__':
+    main()
     print("DONE!")
+
+    
