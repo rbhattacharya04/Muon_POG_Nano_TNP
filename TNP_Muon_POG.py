@@ -1,16 +1,17 @@
 #!/usr/bin/env python
 
-
 import ROOT
 from sys import exit
 from sys import argv
 import argparse
 import time
+import json
 from Muon_TnP_cfg import *
 import os
 from pathlib import Path
 import subprocess
 import sys
+import requests
 sys.path.insert(0, list(filter(lambda k: 'myenv' in k, sys.path))[0])
 import uproot
 import awkward as ak
@@ -23,6 +24,13 @@ ROOT.gInterpreter.ProcessLine(".O3")
 #ROOT.EnableImplicitMT(1)                                  ### Not possible with the original approach: df.Range() to write in chunks
 ROOT.gInterpreter.Declare('#include "headers.hh"')
 ROOT.gInterpreter.Declare('#include "TNP_Muon_POG.h"') 
+
+
+############################################################ 
+################### MUON POG ANALYSIS ######################
+##################### TAG AND PROBE ########################
+####################### nanoAOD ############################
+############################################################
 
 def defaultParser():
     parser = argparse.ArgumentParser(add_help=False)
@@ -94,7 +102,24 @@ def create_TnP_pairs(era, fileName=""):
     df = ROOT.RDataFrame("Events",filenames)
 
     print("Number of events -> " + str(df.Count().GetValue()))
-    
+
+    # Apply lumi mask
+    lumiFile = samples[era]["lumiMask"]
+    lumiText = requests.get(lumiFile)
+    lumiJson = json.loads(lumiText.text)
+    filters = []
+    for run, lumiRanges in lumiJson.items():
+        subFilters = []
+        for lumiRange in lumiRanges:
+            subFilters.append(
+                f"( luminosityBlock >= {lumiRange[0]} && luminosityBlock <= {lumiRange[1]} )"
+            )
+        subFiltersMerged = " || ".join(subFilters)
+        filters.append(f"( run == {run} && ( {subFiltersMerged} ) )")    
+    total_filter = " || ".join(filters)
+    #print(total_filter)
+    df = df.Filter(total_filter)
+
     # just for utility
     df = df.Alias("Tag_pt",  "Muon_pt")
     df = df.Alias("Tag_eta", "Muon_eta")

@@ -17,7 +17,8 @@ selection = {
 samples = {
     "Run2022" : {
         'input'  : "/eos/user/r/rbhattac/Muon_POG_NanoAOD_v2/Muon/NanoMuonPOGData2022F/231103_232820/0000/",
-        "output" : "/eos/cms/store/group/phys_muon//sblancof/TnP_Muon/tnp.parquet",
+        "output" : "/eos/cms/store/group/phys_muon//sblancof/nanoAOD/tnp.parquet",
+        "lumiMask": "https://cms-service-dqmdc.web.cern.ch/CAF/certification/Collisions23/Cert_Collisions2023_366442_370790_Golden.json",
         "doSplit": True,
         "root_file": "tnp.root"
     }
