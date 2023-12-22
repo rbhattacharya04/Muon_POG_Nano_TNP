@@ -169,7 +169,7 @@ def create_TnP_pairs(era, fileName=""):
         df = df.Define("tag_"+var, "getVariables(TPPairs, Muon_"+var+", 1)")
 
     ### Additional variables
-    df = df.Redefine("event", "RVecI(pair_mass.size(), event)")
+    df = df.Define("eventIdx", "RVecD(pair_mass.size(), event)")
         
     loop_time = time.time()
     print("Time taken to loop = ",(loop_time -start))

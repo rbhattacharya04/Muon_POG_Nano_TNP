@@ -41,11 +41,11 @@ RVec<std::pair<int,int>> CreateTPPair(const RVec<Int_t> &Tag_muons,
 {
   RVec<std::pair<int,int>> TP_pairs;
   for (int iLep1 = 0; iLep1 < Tag_muons.size(); iLep1++) {
-    if (not Tag_muons[iLep1]) continue;
+    if (!Tag_muons[iLep1]) continue;
     for(int iLep2 = 0; iLep2 < Probe_Candidates.size(); iLep2++){
       if (isSameCollection && (iLep1 == iLep2)) continue;
-      if (not Probe_Candidates[iLep2]) continue;
-      if (doOppositeCharge and (Tag_Charge[iLep1] == Probe_charge[iLep2])) continue;
+      if (!Probe_Candidates[iLep2]) continue;
+      if (doOppositeCharge && (Tag_Charge[iLep1] == Probe_charge[iLep2])) continue;
       std::pair<int,int> TP_pair = std::make_pair(iLep1, iLep2);
       TP_pairs.push_back(TP_pair);
     }          

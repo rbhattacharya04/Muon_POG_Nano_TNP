@@ -9,6 +9,9 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.functions import pandas_udf, PandasUDFType
 
+from pyspark.sql.functions import col
+from pyspark.sql.types import LongType
+
 import subprocess
 
 spark = SparkSession\
@@ -58,7 +61,7 @@ cmd = "hdfs dfs -find {} -name '*.parquet'".format(input_directory)
 fnames = subprocess.check_output(cmd, shell=True).strip().split(b'\n')
 fnames = [fname.decode('ascii') for fname in fnames]
 
-print(fnames)
+print(fnames[0:10])
 
 first = True
 
@@ -66,7 +69,13 @@ while fnames:
     current = fnames[:batch]
     fnames = fnames[batch:]
 
-    baseDF = spark.read.parquet(*current)
+    baseDF = spark.read.option("mergeSchema","false").parquet(*current)
+    if first:
+        baseDF = spark.read.parquet(*current)
+        schema = baseDF.schema # Force the same schema in the next iterations
+    else:
+        baseDF = spark.read.schema(schema).parquet(*current)
+
     if first:
         baseDF.write.parquet(outFile)
         first = False
