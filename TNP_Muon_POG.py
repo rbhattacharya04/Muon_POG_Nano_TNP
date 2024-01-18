@@ -119,7 +119,7 @@ def create_TnP_pairs(era, fileName=""):
     total_filter = " || ".join(filters)
     #print(total_filter)
     df = df.Filter(total_filter)
-
+    
     # just for utility
     df = df.Alias("Tag_pt",  "Muon_pt")
     df = df.Alias("Tag_eta", "Muon_eta")
@@ -264,8 +264,10 @@ def create_TnP_pairs(era, fileName=""):
     print(df_np)
     
     print("Time taken to create df_np = ", (df_np_time - default_pd_time))
+
+    outputName = f"test_{iteration_no}"
     
-    df_np.to_parquet(samples[era]["output"])
+    df_np.to_parquet(outputPath+outputName+".parquet")
     
     df_save_time = time.time()
     

@@ -21,5 +21,6 @@ samples = {
         "lumiMask": "https://cms-service-dqmdc.web.cern.ch/CAF/certification/Collisions22/Cert_Collisions2022_355100_362760_Golden.json",
         "doSplit": True,
         "root_file": "tnp.root"
+
     }
 }
